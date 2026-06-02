@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generator Etichete Mărturii</title>
+    <!-- Librăria pentru codurile QR -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Librăria magică pentru descărcarea directă a fișierului PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        :root { --bg-body: #e8e4e1; --text-dark: #222; --accent: #d4a373; }
+        body { font-family: 'Georgia', serif; background-color: var(--bg-body); margin: 0; padding: 15px; color: var(--text-dark); }
+        
+        .control-panel { 
+            background: white; 
+            padding: 25px; 
+            border-radius: 12px; 
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08); 
+            max-width: 800px; 
+            margin: 0 auto 25px auto; 
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .header-panel { text-align: center; border-bottom: 2px dashed #eee; padding-bottom: 15px; margin-bottom: 20px; }
+        .header-panel h1 { margin: 0; font-size: 22px; color: #111; }
+
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { font-weight: 600; margin-bottom: 6px; font-size: 13px; color: #555; }
+        .form-group input { padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; outline: none; }
+        .form-group input[type="color"] { padding: 0; height: 42px; cursor: pointer; width: 100%; border: none; border-radius: 6px; overflow: hidden; }
+
+        .action-buttons { display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
+        button { color: white; border: none; padding: 12px 20px; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.3s; }
+        
+        .btn-update { background-color: #2C2825; }
+        .btn-update:hover { background-color: #000; }
+        
+        .btn-pdf { background-color: #2e86de; }
+        .btn-pdf:hover { background-color: #0984e3; box-shadow: 0 4px 10px rgba(46, 134, 222, 0.4); }
+        
+        .btn-print { background-color: var(--accent); }
+        .btn-print:hover { background-color: #b08d55; }
+
+        /* MAGIA AUTO-FIT A4 */
+        #print-area {
+            width: 210mm; 
+            height: 297mm; /* Se întinde perfect pe o coală întreagă A4 */
+            margin: 0 auto;
+            background-color: white;
+            box-shadow: 0 0 15px rgba(0,0,0,0.15);
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); 
+            border-top: 1px solid #444; 
+            border-left: 1px solid #444;
+            box-sizing: border-box;
+        }
+
+        .eticheta {
+            border-right: 1px solid #444; 
+            border-bottom: 1px solid #444; 
+            box-sizing: border-box;
+            
+            /* Textura fină de hârtie */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.5' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+            
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center; 
+            padding: 5px;
+            overflow: hidden; 
+        }
+
+        .eticheta-continut {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 15px; 
+            max-width: 95%;
+        }
+
+        .qr-box { flex-shrink: 0; background: white; padding: 4px; border-radius: 4px; }
+        .detalii { display: flex; flex-direction: column; justify-content: center; }
+        .titlu { font-family: 'Georgia', serif; font-weight: bold; color: #111; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 4px; }
+        
+        .pasi { color: #333; line-height: 1.3; }
+        .pasi b { color: #000; }
+        .link-text { color: #000; font-weight: bold; display: block; margin-top: 4px; }
+
+        /* Setări pentru Printarea fizică */
+        @media print {
+            body { background: none; padding: 0; margin: 0; }
+            .control-panel { display: none; }
+            #print-area { width: 100%; height: 287mm; box-shadow: none; border-color: #000; }
+            .eticheta { border-color: #000; page-break-inside: avoid; }
+            @page { margin: 5mm; size: A4 portrait; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="control-panel">
+        <div class="header-panel">
+            <h1>✨ Generator Etichete (Format Cărți de Vizită)</h1>
+        </div>
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Titlu & Emoji</label>
+                <input type="text" id="inputTitlu" value="Mărturie Nuntă 💍">
+            </div>
+            <div class="form-group">
+                <label>Nume Rețea Wi-Fi</label>
+                <input type="text" id="inputWifi" value="Nunta_Alex_Maria">
+            </div>
+            <div class="form-group">
+                <label>Link Alternativ</label>
+                <input type="text" id="inputLink" value="http://povestea.noastra">
+            </div>
+            <div class="form-group">
+                <label>Culoare Textură</label>
+                <input type="color" id="inputCuloare" value="#fcfaf7">
+            </div>
+            <div class="form-group">
+                <label>Număr Etichete pe foaie (Par)</label>
+                <input type="number" id="inputNumar" value="10" min="2" max="30" step="2">
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button class="btn-update" onclick="genereazaEtichete()">🔄 Actualizează</button>
+            <button class="btn-pdf" id="btnDescrcaPdf" onclick="descarcaPDF()">💾 Salvează PDF</button>
+            <button class="btn-print" onclick="window.print()">🖨️ Printează Direct</button>
+        </div>
+    </div>
+
+    <!-- ZONA ETICHETELOR -->
+    <div id="print-area"></div>
+
+    <script>
+        // 1. GENERAREA ETICHETELOR
+        function genereazaEtichete() {
+            const titlu = document.getElementById('inputTitlu').value.trim();
+            const wifiName = document.getElementById('inputWifi').value.trim();
+            const linkAces = document.getElementById('inputLink').value.trim();
+            const culoareFundal = document.getElementById('inputCuloare').value;
+            let numarEtichete = parseInt(document.getElementById('inputNumar').value);
+            
+            if (!wifiName) { alert("Numele rețelei e obligatoriu!"); return; }
+
+            // Forțăm număr par pentru 2 coloane
+            if (numarEtichete % 2 !== 0) {
+                numarEtichete += 1;
+                document.getElementById('inputNumar').value = numarEtichete;
+            }
+
+            const printArea = document.getElementById('print-area');
+            printArea.innerHTML = '';
+
+            const rows = numarEtichete / 2;
+            printArea.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+
+            // Adaptăm textul și QR-ul în funcție de numărul de rânduri (A4 are aprox 1122px pe înălțime)
+            const fontTitluPx = Math.max(12, 17 - (rows * 0.4)) + 'px';
+            const marginTitluPx = Math.max(4, 8 - (rows * 0.3)) + 'px';
+            const fontPasiPx = Math.max(9, 13 - (rows * 0.4)) + 'px';
+            const fontLinkPx = Math.max(10, 14 - (rows * 0.4)) + 'px';
+            
+            const rowHeightPx = 1122 / rows; 
+            let qrSize = Math.floor(Math.min(rowHeightPx - 15, 80)); 
+            if(qrSize < 35) qrSize = 35; 
+
+            const stringQR_WiFi = `WIFI:T:nopass;S:${wifiName};;`;
+
+            for(let i = 0; i < numarEtichete; i++) {
+                const eticheta = document.createElement('div');
+                eticheta.className = 'eticheta';
+                eticheta.style.backgroundColor = culoareFundal;
+                
+                eticheta.innerHTML = `
+                    <div class="eticheta-continut">
+                        <div class="qr-box" id="qr-${i}"></div>
+                        <div class="detalii">
+                            <div class="titlu" style="font-size: ${fontTitluPx}; margin-bottom: ${marginTitluPx};">${titlu}</div>
+                            <div class="pasi" style="font-size: ${fontPasiPx};">
+                                <div><b>1.</b> Alimentează mărturia.</div>
+                                <div><b>2.</b> Scanează QR-ul.</div>
+                                <div><b>3.</b> Dacă nu se deschide,<br> intră pe: <span class="link-text" style="font-size: ${fontLinkPx};">${linkAces}</span></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                printArea.appendChild(eticheta);
+
+                new QRCode(document.getElementById(`qr-${i}`), {
+                    text: stringQR_WiFi,
+                    width: qrSize, 
+                    height: qrSize,
+                    colorDark : "#111111", 
+                    colorLight : "transparent", // QR Transparent pentru a se vedea textura hârtiei
+                    correctLevel : QRCode.CorrectLevel.M 
+                });
+            }
+        }
+
+        window.onload = genereazaEtichete;
+
+        // 2. MAGIA DE DESCĂRCARE DIRECTĂ PDF
+        function descarcaPDF() {
+            const element = document.getElementById('print-area');
+            const wifiName = document.getElementById('inputWifi').value.trim() || 'Illumra';
+            const btn = document.getElementById('btnDescrcaPdf');
+            
+            // Schimbăm starea butonului ca să știe că lucrează
+            btn.innerText = "⏳ Se generează fișierul...";
+            btn.style.backgroundColor = "#ff9f43";
+            btn.disabled = true;
+
+            // Setările pentru PDF - Folosind o metodă mult mai curată pentru A4
+            const opt = {
+                margin:       0,
+                filename:     `Etichete_${wifiName}.pdf`,
+                image:        { type: 'jpeg', quality: 1 },
+                // Rezoluție maximă și anti-aliasing dezactivat pentru QR crisp
+                html2canvas:  { scale: 4, useCORS: true, logging: false }, 
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            // Reparăm dimensiunile înainte de a genera PDF-ul
+            element.style.width = '210mm';
+            element.style.height = '297mm';
+            element.style.borderTop = 'none';
+            element.style.borderLeft = 'none';
+            element.style.boxShadow = 'none';
+
+            // Generăm PDF-ul și îl descărcăm
+            html2pdf().set(opt).from(element).save().then(() => {
+                // Punem totul la loc pe ecran după descărcare
+                element.style.width = '210mm';
+                element.style.height = '297mm';
+                element.style.borderTop = '1px solid #444';
+                element.style.borderLeft = '1px solid #444';
+                element.style.boxShadow = '0 0 15px rgba(0,0,0,0.15)';
+                btn.innerText = "💾 Salvează PDF";
+                btn.style.backgroundColor = "#2e86de";
+                btn.disabled = false;
+            });
+        }
+    </script>
+</body>
+</html>
