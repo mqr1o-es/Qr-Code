@@ -79,7 +79,28 @@
             padding: 0 5px;
         }
 
-        .qr-box { flex-shrink: 0; background: white; padding: 4px; border-radius: 4px; }
+        .qr-box { 
+            flex-shrink: 0; 
+            background: white; 
+            padding: 4px; 
+            border-radius: 4px; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        
+        /* MAGIC FIX: Forțăm elementele din interiorul QR-ului să nu își piardă din rezoluție */
+        .qr-box img, .qr-box canvas {
+            width: 100% !important;
+            height: 100% !important;
+            /* Păstrează blocurile clare, blochează anti-aliasing-ul care face blur */
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+            image-rendering: pixelated; 
+        }
+
         .detalii { display: flex; flex-direction: column; justify-content: center; flex-grow: 1; overflow: hidden; }
         .titlu { font-family: 'Georgia', serif; font-weight: bold; color: #111; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 4px; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
         
@@ -113,7 +134,6 @@
                 <label>Înălțime Etichetă (cm) - Max 29.7</label>
                 <input type="number" id="inputInaltime" value="5.5" step="0.1" min="3" max="29.7">
             </div>
-            <!-- Am scos inputul pentru numar etichete total -->
             
             <div class="form-group">
                 <label>Titlu & Emoji</label>
@@ -184,10 +204,14 @@
             const fontPasiPx = Math.max(8, Math.floor(inaltimeCm * 2)) + 'px';
             const fontLinkPx = Math.max(9, Math.floor(inaltimeCm * 2.2)) + 'px';
             
-            // Calculam marimea QR-ului: sa ocupe cam 60% din inaltimea etichetei
+            // Calculam marimea fizica/vizuala a QR-ului: sa ocupe cam 60% din inaltimea etichetei
             let qrSize = Math.floor(inaltimeCm * 37.8 * 0.60); 
             if(qrSize < 35) qrSize = 35; // Limita minima
             if(qrSize > (latimeCm * 37.8 * 0.4)) qrSize = Math.floor(latimeCm * 37.8 * 0.4); // Sa nu iasa din latime
+
+            // FIX REZOLUȚIE: Generăm codul QR la o rezoluție de 4x mai mare pentru a nu se pierde calitatea în PDF
+            const renderScale = 4;
+            const highResQrSize = qrSize * renderScale;
 
             const stringQR_WiFi = `WIFI:T:nopass;S:${wifiName};;`;
 
@@ -196,9 +220,10 @@
                 eticheta.className = 'eticheta';
                 eticheta.style.backgroundColor = culoareFundal;
                 
+                // Am adaugat style="width/height" pe div-ul qr-box pentru a-l pastra fizic la marimea dorita
                 eticheta.innerHTML = `
                     <div class="eticheta-continut">
-                        <div class="qr-box" id="qr-${i}"></div>
+                        <div class="qr-box" id="qr-${i}" style="width: ${qrSize}px; height: ${qrSize}px;"></div>
                         <div class="detalii">
                             <div class="titlu" style="font-size: ${fontTitluPx};">${titlu}</div>
                             <div class="pasi" style="font-size: ${fontPasiPx};">
@@ -212,12 +237,13 @@
                 
                 printArea.appendChild(eticheta);
 
+                // Generăm codul la highResQrSize (rezoluție ridicată) 
                 new QRCode(document.getElementById(`qr-${i}`), {
                     text: stringQR_WiFi,
-                    width: qrSize, 
-                    height: qrSize,
+                    width: highResQrSize,  
+                    height: highResQrSize,
                     colorDark : "#111111", 
-                    colorLight : "transparent",
+                    colorLight : "#ffffff", // setat explicit pe alb ca sa evitam erori de PDF
                     correctLevel : QRCode.CorrectLevel.M 
                 });
             }
@@ -235,21 +261,18 @@
             btn.disabled = true;
 
             // PREGATIRE PENTRU PERFECT A4
-            // Memoram styling-ul vechi
             const oldMargin = element.style.margin;
             const oldPosition = element.style.position;
             const oldTop = element.style.top;
             const oldLeft = element.style.left;
             const oldBoxShadow = element.style.boxShadow;
 
-            // Fortam elementul sa stea fix in colt stanga sus fara absolut niciun spatiu alb
             element.style.margin = "0";
             element.style.position = "fixed";
             element.style.top = "0";
             element.style.left = "0";
             element.style.boxShadow = "none";
             
-            // Pixel dimensiuni standard pentru A4 la 96DPI
             const a4WidthPx = 794;
             const a4HeightPx = 1123;
 
@@ -274,7 +297,6 @@
             };
 
             html2pdf().set(opt).from(element).save().then(() => {
-                // Restabilim la normal afisajul pe ecran
                 element.style.margin = oldMargin;
                 element.style.position = oldPosition;
                 element.style.top = oldTop;
