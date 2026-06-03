@@ -44,18 +44,24 @@
         .btn-print { background-color: var(--accent); }
         .btn-print:hover { background-color: #b08d55; }
 
-        /* MAGIA AUTO-FIT A4 */
+        /* MAGIA AUTO-FIT A4 pe 3 Coloane */
+        #print-wrapper {
+            /* Container ajutător pentru a preveni marginile albe */
+            display: flex;
+            justify-content: center;
+        }
+
         #print-area {
             width: 210mm; 
-            height: 297mm; /* Se întinde perfect pe o coală întreagă A4 */
-            margin: 0 auto;
+            height: 297mm; /* Dimensiune exactă A4 */
             background-color: white;
             box-shadow: 0 0 15px rgba(0,0,0,0.15);
             display: grid;
-            grid-template-columns: repeat(2, 1fr); 
+            grid-template-columns: repeat(3, 1fr); /* AM MODIFICAT AICI LA 3 COLOANE */
             border-top: 1px solid #444; 
             border-left: 1px solid #444;
             box-sizing: border-box;
+            background-clip: padding-box;
         }
 
         .eticheta {
@@ -78,22 +84,44 @@
             display: flex;
             flex-direction: row;
             align-items: center;
-            gap: 15px; 
-            max-width: 95%;
+            gap: 10px; /* Gap mai mic pentru că avem 3 coloane */
+            max-width: 98%;
         }
 
-        .qr-box { flex-shrink: 0; background: white; padding: 4px; border-radius: 4px; }
+        /* NOU: Spațiul INVIZIBIL pentru perforator (stânga-sus) */
+        .spatiu-perforator {
+            width: 15px;
+            height: 15px;
+            flex-shrink: 0;
+            background-color: transparent;
+            border: none;
+            align-self: flex-start; /* Îl forțăm să stea în partea de sus */
+            margin-top: -5px; /* Ajustare ușoară pentru a lăsa colțul perfect gol */
+        }
+
+        .qr-box { 
+            flex-shrink: 0; 
+            background: #ffffff; /* FORȚĂM FUNDAL ALB PUR */
+            padding: 6px; /* Padding mai mare pentru o zonă clară de scanare */
+            border-radius: 6px; 
+            border: 1px solid rgba(0,0,0,0.15); /* Un chenar fin pentru contrast clar */
+            box-shadow: 0 3px 6px rgba(0,0,0,0.08); /* Puțină adâncime ca să iasă în evidență */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
         .detalii { display: flex; flex-direction: column; justify-content: center; }
-        .titlu { font-family: 'Georgia', serif; font-weight: bold; color: #111; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 4px; }
+        .titlu { font-family: 'Georgia', serif; font-weight: bold; color: #111; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 3px; }
         
-        .pasi { color: #333; line-height: 1.3; }
+        .pasi { color: #333; line-height: 1.25; }
         .pasi b { color: #000; }
-        .link-text { color: #000; font-weight: bold; display: block; margin-top: 4px; }
+        .link-text { color: #000; font-weight: bold; display: block; margin-top: 3px; }
 
         /* Setări pentru Printarea fizică */
         @media print {
             body { background: none; padding: 0; margin: 0; }
             .control-panel { display: none; }
+            #print-wrapper { display: block; }
             #print-area { width: 100%; height: 287mm; box-shadow: none; border-color: #000; }
             .eticheta { border-color: #000; page-break-inside: avoid; }
             @page { margin: 5mm; size: A4 portrait; }
@@ -104,7 +132,7 @@
 
     <div class="control-panel">
         <div class="header-panel">
-            <h1>✨ Generator Etichete (Format Cărți de Vizită)</h1>
+            <h1>✨ Generator Etichete (3 Coloane)</h1>
         </div>
 
         <div class="form-grid">
@@ -125,8 +153,16 @@
                 <input type="color" id="inputCuloare" value="#fcfaf7">
             </div>
             <div class="form-group">
-                <label>Număr Etichete pe foaie (Par)</label>
-                <input type="number" id="inputNumar" value="10" min="2" max="30" step="2">
+                <label>Număr Coloane</label>
+                <select id="inputColoane" style="padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; outline: none; background: white;" onchange="ajusteazaNumarEtichete()">
+                    <option value="2">2 Coloane (Mari)</option>
+                    <option value="3" selected>3 Coloane (Medii)</option>
+                    <option value="4">4 Coloane (Mici)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Număr Etichete (Se ajustează automat)</label>
+                <input type="number" id="inputNumar" value="15" min="2" max="48" step="1">
             </div>
         </div>
 
@@ -138,40 +174,77 @@
     </div>
 
     <!-- ZONA ETICHETELOR -->
-    <div id="print-area"></div>
+    <div id="print-wrapper">
+        <div id="print-area"></div>
+    </div>
 
     <script>
+        // Functie helper pentru a mentine numarul de etichete multiplu de numarul de coloane
+        function ajusteazaNumarEtichete() {
+            const coloane = parseInt(document.getElementById('inputColoane').value);
+            let numarEtichete = parseInt(document.getElementById('inputNumar').value);
+            
+            if (numarEtichete % coloane !== 0) {
+                numarEtichete += (coloane - (numarEtichete % coloane));
+                document.getElementById('inputNumar').value = numarEtichete;
+            }
+        }
+
         // 1. GENERAREA ETICHETELOR
         function genereazaEtichete() {
             const titlu = document.getElementById('inputTitlu').value.trim();
             const wifiName = document.getElementById('inputWifi').value.trim();
             const linkAces = document.getElementById('inputLink').value.trim();
             const culoareFundal = document.getElementById('inputCuloare').value;
+            const coloane = parseInt(document.getElementById('inputColoane').value);
+            
+            // Fortam numarul sa fie multiplu de coloane inainte de generare
+            ajusteazaNumarEtichete();
             let numarEtichete = parseInt(document.getElementById('inputNumar').value);
             
             if (!wifiName) { alert("Numele rețelei e obligatoriu!"); return; }
 
-            // Forțăm număr par pentru 2 coloane
-            if (numarEtichete % 2 !== 0) {
-                numarEtichete += 1;
-                document.getElementById('inputNumar').value = numarEtichete;
-            }
-
             const printArea = document.getElementById('print-area');
             printArea.innerHTML = '';
 
-            const rows = numarEtichete / 2;
+            const rows = Math.ceil(numarEtichete / coloane);
+            
+            // Setam grid-ul dinamic bazat pe selectie
+            printArea.style.gridTemplateColumns = `repeat(${coloane}, 1fr)`;
             printArea.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
 
-            // Adaptăm textul și QR-ul în funcție de numărul de rânduri (A4 are aprox 1122px pe înălțime)
-            const fontTitluPx = Math.max(12, 17 - (rows * 0.4)) + 'px';
-            const marginTitluPx = Math.max(4, 8 - (rows * 0.3)) + 'px';
-            const fontPasiPx = Math.max(9, 13 - (rows * 0.4)) + 'px';
-            const fontLinkPx = Math.max(10, 14 - (rows * 0.4)) + 'px';
-            
+            // Calculam dimensiunile in functie de numarul de coloane
+            // Am scos scala automata la QR, am fixat valorile pt vizibilitate si consistenta maxima.
+            let fontTitluPx, marginTitluPx, fontPasiPx, fontLinkPx, gapSize, qrSize;
+
+            if (coloane === 2) {
+                fontTitluPx = Math.max(12, 17 - (rows * 0.4)) + 'px';
+                marginTitluPx = Math.max(4, 8 - (rows * 0.3)) + 'px';
+                fontPasiPx = Math.max(9, 13 - (rows * 0.4)) + 'px';
+                fontLinkPx = Math.max(10, 14 - (rows * 0.4)) + 'px';
+                gapSize = '15px';
+                qrSize = 75; // Dimensiune fixa, optima pt 2 coloane
+            } else if (coloane === 3) {
+                fontTitluPx = Math.max(10, 15 - (rows * 0.4)) + 'px';
+                marginTitluPx = Math.max(3, 6 - (rows * 0.3)) + 'px';
+                fontPasiPx = Math.max(8, 11 - (rows * 0.3)) + 'px';
+                fontLinkPx = Math.max(8, 11 - (rows * 0.3)) + 'px';
+                gapSize = '10px';
+                qrSize = 65; // Dimensiune fixa, optima pt 3 coloane
+            } else { // 4 coloane
+                fontTitluPx = Math.max(8, 12 - (rows * 0.3)) + 'px';
+                marginTitluPx = Math.max(2, 4 - (rows * 0.2)) + 'px';
+                fontPasiPx = Math.max(6, 9 - (rows * 0.2)) + 'px';
+                fontLinkPx = Math.max(6, 9 - (rows * 0.2)) + 'px';
+                gapSize = '6px';
+                qrSize = 50; // Dimensiune fixa, optima pt 4 coloane
+            }
+
+            // Siguranta: daca numarul de randuri e exagerat de mare, scadem f. putin QR-ul ca sa nu iasa din cutie
             const rowHeightPx = 1122 / rows; 
-            let qrSize = Math.floor(Math.min(rowHeightPx - 15, 80)); 
-            if(qrSize < 35) qrSize = 35; 
+            if (qrSize > rowHeightPx - 25) {
+                qrSize = Math.floor(rowHeightPx - 25);
+            }
 
             const stringQR_WiFi = `WIFI:T:nopass;S:${wifiName};;`;
 
@@ -181,7 +254,8 @@
                 eticheta.style.backgroundColor = culoareFundal;
                 
                 eticheta.innerHTML = `
-                    <div class="eticheta-continut">
+                    <div class="eticheta-continut" style="gap: ${gapSize};">
+                        <div class="spatiu-perforator"></div> <!-- AICI E SPATIUL INVIZIBIL PT GAURA -->
                         <div class="qr-box" id="qr-${i}"></div>
                         <div class="detalii">
                             <div class="titlu" style="font-size: ${fontTitluPx}; margin-bottom: ${marginTitluPx};">${titlu}</div>
@@ -200,55 +274,54 @@
                     text: stringQR_WiFi,
                     width: qrSize, 
                     height: qrSize,
-                    colorDark : "#111111", 
-                    colorLight : "transparent", // QR Transparent pentru a se vedea textura hârtiei
+                    colorDark : "#000000", // Negru puternic
+                    colorLight : "#ffffff", // Alb pur (rezolvă problema de vizibilitate)
                     correctLevel : QRCode.CorrectLevel.M 
                 });
             }
         }
 
+        // Adaugam un event listener si pentru input-ul de numar etichete ca sa ajusteze automat la pierderea focusului
+        document.getElementById('inputNumar').addEventListener('blur', function() {
+             ajusteazaNumarEtichete();
+        });
+
         window.onload = genereazaEtichete;
 
-        // 2. MAGIA DE DESCĂRCARE DIRECTĂ PDF
-        function descarcaPDF() {
-            const element = document.getElementById('print-area');
+        // 2. MAGIA DE DESCĂRCARE DIRECTĂ PDF - VARIANTA STABILĂ
+        async function descarcaPDF() {
+            const originalElement = document.getElementById('print-area');
             const wifiName = document.getElementById('inputWifi').value.trim() || 'Illumra';
             const btn = document.getElementById('btnDescrcaPdf');
             
-            // Schimbăm starea butonului ca să știe că lucrează
             btn.innerText = "⏳ Se generează fișierul...";
             btn.style.backgroundColor = "#ff9f43";
             btn.disabled = true;
 
-            // Setările pentru PDF - Folosind o metodă mult mai curată pentru A4
+            // Creăm o clonă ascunsă a elementului pentru a nu afecta afișajul în timp ce generăm PDF-ul
             const opt = {
                 margin:       0,
                 filename:     `Etichete_${wifiName}.pdf`,
                 image:        { type: 'jpeg', quality: 1 },
-                // Rezoluție maximă și anti-aliasing dezactivat pentru QR crisp
-                html2canvas:  { scale: 4, useCORS: true, logging: false }, 
+                html2canvas:  { 
+                    scale: 3, // Scăzut la 3 pentru o procesare mai rapidă și sigură (este suficient pentru print)
+                    useCORS: true, 
+                    logging: false,
+                    windowWidth: 794 // Fortam latimea A4 la 96DPI pentru a elimina linia alba
+                }, 
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
-            // Reparăm dimensiunile înainte de a genera PDF-ul
-            element.style.width = '210mm';
-            element.style.height = '297mm';
-            element.style.borderTop = 'none';
-            element.style.borderLeft = 'none';
-            element.style.boxShadow = 'none';
-
-            // Generăm PDF-ul și îl descărcăm
-            html2pdf().set(opt).from(element).save().then(() => {
-                // Punem totul la loc pe ecran după descărcare
-                element.style.width = '210mm';
-                element.style.height = '297mm';
-                element.style.borderTop = '1px solid #444';
-                element.style.borderLeft = '1px solid #444';
-                element.style.boxShadow = '0 0 15px rgba(0,0,0,0.15)';
+            try {
+                 await html2pdf().set(opt).from(originalElement).save();
+            } catch (error) {
+                 console.error("Eroare la generarea PDF-ului:", error);
+                 alert("A apărut o eroare la salvarea PDF-ului.");
+            } finally {
                 btn.innerText = "💾 Salvează PDF";
                 btn.style.backgroundColor = "#2e86de";
                 btn.disabled = false;
-            });
+            }
         }
     </script>
 </body>
